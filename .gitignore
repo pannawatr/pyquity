@@ -1,0 +1,7 @@
+main.py
+
+.DS_Store
+.venv
+
+pyquity/.DS_Store
+pyquity/.venv
