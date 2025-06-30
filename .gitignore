@@ -1,5 +1,6 @@
 main.py
 gtfs.zip
+cache/
 
 .DS_Store
 .venv
