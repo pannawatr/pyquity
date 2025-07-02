@@ -68,7 +68,6 @@ def grid_nearest_node(G, grid: gpd.GeoDataFrame):
     nodes = [ox.distance.nearest_nodes(G, point.x, point.y) for point in grid.geometry.centroid]
     return nodes
 
-
 def grid_poi(grid: gpd.GeoDataFrame, amenity: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     amenity = amenity.to_crs(epsg=3857)
     amenity.geometry = amenity.geometry.centroid
@@ -102,3 +101,6 @@ def graph_to_gdf(G) -> gpd.GeoDataFrame:
     gdf_edges = gpd.GeoDataFrame(edges, crs='EPSG:4326')
     gdf = pd.concat([gdf_nodes, gdf_edges], ignore_index=True)
     return gdf
+
+def multimodal_graph(osm: gpd.GeoDataFrame, gtfs: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    return G
