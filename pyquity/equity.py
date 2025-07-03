@@ -10,3 +10,9 @@ def grid_micromobility(grid: gpd.GeoDataFrame, amenity: gpd.GeoDataFrame, microm
         except:
             raise ValueError("")
     return grid
+
+def equity_sufficientarianism():
+    return gdf
+
+def equity_egalitarianism():
+    return gdf

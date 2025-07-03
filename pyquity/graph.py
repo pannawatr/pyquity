@@ -4,9 +4,9 @@ import pandas as pd
 import networkx as nx
 import partridge as ptg
 import geopandas as gpd
-
 from tqdm import tqdm
 from shapely.geometry import Polygon, Point, LineString
+
 
 def graph_from_gtfs(gtfs_file: str) -> nx.DiGraph:
     date = ptg.read_service_ids_by_date(gtfs_file)
@@ -82,14 +82,21 @@ def grid_poi(grid: gpd.GeoDataFrame, amenity: gpd.GeoDataFrame) -> gpd.GeoDataFr
 def graph_to_gdf(G) -> gpd.GeoDataFrame:
     nodes = []
     for node_id, data in G.nodes(data=True):
-        point = Point(data['lon'], data['lat'])
+        try:
+            point = Point(data['lon'], data['lat'])
+        except:
+            point = Point(data['x'], data['y'])
         nodes.append({'stop_id': node_id, 'geometry': point, 'name': data.get('name', '')})
     gdf_nodes = gpd.GeoDataFrame(nodes, crs='EPSG:4326')
 
     edges = []
     for u, v, data in G.edges(data=True):
-        point_u = Point(G.nodes[u]['lon'], G.nodes[u]['lat'])
-        point_v = Point(G.nodes[v]['lon'], G.nodes[v]['lat'])
+        try:
+            point_u = Point(G.nodes[u]['lon'], G.nodes[u]['lat'])
+            point_v = Point(G.nodes[v]['lon'], G.nodes[v]['lat'])
+        except:
+            point_u = Point(G.nodes[u]['x'], G.nodes[u]['y'])
+            point_v = Point(G.nodes[v]['x'], G.nodes[v]['y'])
         line = LineString([point_u, point_v])
         edges.append({
             'from': u,
