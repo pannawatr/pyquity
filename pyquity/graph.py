@@ -4,9 +4,13 @@ import pandas as pd
 import networkx as nx
 import partridge as ptg
 import geopandas as gpd
+
 from tqdm import tqdm
 from shapely.geometry import Polygon, Point, LineString
 
+# Ref: Base on OSMnx 
+def graph_from_place(place_name: str, network_type: str='all'):
+    return ox.graph_from_place(place_name, network_type=network_type)
 
 def graph_from_gtfs(gtfs_file: str) -> nx.DiGraph:
     date = ptg.read_service_ids_by_date(gtfs_file)
@@ -24,7 +28,7 @@ def graph_from_gtfs(gtfs_file: str) -> nx.DiGraph:
         point = row['geometry']
         G.add_node(row['stop_id'], lat=point.y, lon=point.x, name=row['stop_name'])
 
-    for trip_id in tqdm(trips['trip_id'], desc=""):
+    for trip_id in tqdm(trips['trip_id'], desc="Create gtfs graph"):
         trip_stops = stop_times[stop_times.trip_id == trip_id].sort_values('stop_sequence')
         prev_stop = None
         prev_departure = None
@@ -81,7 +85,7 @@ def grid_poi(grid: gpd.GeoDataFrame, amenity: gpd.GeoDataFrame) -> gpd.GeoDataFr
 
 def graph_to_gdf(G) -> gpd.GeoDataFrame:
     nodes = []
-    for node_id, data in G.nodes(data=True):
+    for node_id, data in G.nodes(data=node):
         try:
             point = Point(data['lon'], data['lat'])
         except:
@@ -90,7 +94,7 @@ def graph_to_gdf(G) -> gpd.GeoDataFrame:
     gdf_nodes = gpd.GeoDataFrame(nodes, crs='EPSG:4326')
 
     edges = []
-    for u, v, data in G.edges(data=True):
+    for u, v, data in G.edges(data=edge):
         try:
             point_u = Point(G.nodes[u]['lon'], G.nodes[u]['lat'])
             point_v = Point(G.nodes[v]['lon'], G.nodes[v]['lat'])
@@ -109,5 +113,5 @@ def graph_to_gdf(G) -> gpd.GeoDataFrame:
     gdf = pd.concat([gdf_nodes, gdf_edges], ignore_index=True)
     return gdf
 
-def multimodal_graph(osm: gpd.GeoDataFrame, gtfs: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+def multimodal_graph(G_osm: gpd.GeoDataFrame, G_gtfs: gpd.GeoDataFrame, network_name: str='walk') -> gpd.GeoDataFrame:
     return G
