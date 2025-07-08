@@ -15,7 +15,7 @@ def graph_from_place(place_name: str, network_type: str='all'):
 def graph_from_gtfs(gtfs_file: str) -> nx.DiGraph:
     date = ptg.read_service_ids_by_date(gtfs_file)
     if not date:
-        raise ValueError("No valid service date found in GTFS file.")
+        raise ValueError("No valid service date found in GTFS file")
     target_date = sorted(date.keys())[0]
     feed = ptg.load_geo_feed(gtfs_file, view={'trips.txt': {'service_id': date[target_date]}})
 
@@ -69,7 +69,7 @@ def get_amenity(place_name: str, amenity_type: str) -> gpd.GeoDataFrame:
     return gdf
 
 def grid_nearest_node(G, grid: gpd.GeoDataFrame):
-    nodes = [ox.distance.nearest_nodes(G, point.x, point.y) for point in grid.geometry.centroid]
+    nodes = [ox.distance.nearest_nodes(G, point.x, point.y) for point in tqdm(grid.geometry.centroid, desc="Find nearest node from grid to graph")]
     return nodes
 
 def grid_poi(grid: gpd.GeoDataFrame, amenity: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -113,5 +113,5 @@ def graph_to_gdf(G) -> gpd.GeoDataFrame:
     gdf = pd.concat([gdf_nodes, gdf_edges], ignore_index=True)
     return gdf
 
-def multimodal_graph(G_osm: gpd.GeoDataFrame, G_gtfs: gpd.GeoDataFrame, network_name: str='walk') -> gpd.GeoDataFrame:
+def multimodal_graph():
     return G
