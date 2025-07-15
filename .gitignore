@@ -3,7 +3,7 @@ gtfs.zip
 cache/
 
 .DS_Store
-.venv
-
 pyquity/.DS_Store
+
+.venv
 pyquity/.venv

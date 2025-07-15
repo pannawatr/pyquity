@@ -69,6 +69,7 @@ def get_amenity(place_name: str, amenity_type: str) -> gpd.GeoDataFrame:
     return gdf
 
 def grid_nearest_node(G, grid: gpd.GeoDataFrame):
+    grid = grid.to_crs(epsg=3857)
     nodes = [ox.distance.nearest_nodes(G, point.x, point.y) for point in tqdm(grid.geometry.centroid, desc="Find nearest node from grid to graph")]
     return nodes
 
