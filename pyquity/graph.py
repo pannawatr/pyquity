@@ -2,7 +2,6 @@ import osmnx as ox
 import pandas as pd
 import networkx as nx
 import partridge as ptg
-from math import radians, cos, sin, asin, sqrt
 
 def graph_from_gtfs(gtfs: str) -> nx.DiGraph:
     # Read service dates from GTFS
