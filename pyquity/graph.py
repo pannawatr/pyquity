@@ -22,16 +22,6 @@ def graph_from_gtfs(gtfs: str) -> nx.DiGraph:
     stops = feed.stops
     shapes = feed.shapes
 
-    # print(stops)
-    # print(stop_times)
-    # print(trips)
-    # print(shapes)
-
-    df_stops = pd.merge(stops, stop_times, how='left', on='stop_id')
-    df_trips = pd.merge(trips, shapes, how='left', on='shape_id')
-    # print(gdf_stops)
-    # print(gdf_trips)
-    
     # Initialize a directed graph
     G = nx.DiGraph()
 
