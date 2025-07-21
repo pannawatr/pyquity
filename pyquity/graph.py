@@ -4,7 +4,7 @@ import pandas as pd
 import networkx as nx
 import geopandas as gpd
 import partridge as ptg
-from shapely.geometry import Polygon, LineString, Point
+from shapely.geometry import Polygon
 
 def graph_from_gtfs(gtfs: str) -> nx.DiGraph:
     # Read service dates from GTFS
@@ -31,6 +31,10 @@ def graph_from_gtfs(gtfs: str) -> nx.DiGraph:
 
     # Return a directed graph
     return G
+
+def graph_from_place(place_name: str, network_type: str) -> gpd.GeoDataFrame:
+    # Return a graph from OSMnx
+    return ox.graph_from_place(place_name, network_type=network_type)
 
 def grid_from_place(place_name: str, grid_size: float) -> gpd.GeoDataFrame:
     # Read boundary from OpenStreetMap(OSM)
