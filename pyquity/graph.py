@@ -49,3 +49,20 @@ def grid_from_place(place_name: str, grid_size: float) -> gpd.GeoDataFrame:
 
     # Return a grid
     return grid.to_crs(epsg=4326)
+
+def amenity_from_place(place_name, amenity_type) -> gpd.GeoDataFrame:
+    # Initialize an amenity
+    amenity = {
+        'education': ['college', 'dancing_school', 'driving_school', 'first_aid_school', 'kindergarten', 'language_school', 'library', 'surf_school', 'toy_library', 'research_institute', 'training', 'music_school', 'school', 'traffic_park', 'university'],
+        'financial': ['atm', 'bank', 'bureau_de_change'],
+        'healthcare': ['baby_hatch', 'clinic', 'dentist', 'doctors', 'hospital', 'nursing_home', 'pharmacy', 'social_facility', 'veterinary' ]
+        }
+    
+    # Select an amenity
+    amenity = amenity[amenity_type.lower()]
+
+    # Load an amenity from OpenStreetMap
+    gdf = ox.features.features_from_place(place_name, tags={'amenity': amenity})
+
+    # Return a GeoDataFrame of amenity
+    return gdf
