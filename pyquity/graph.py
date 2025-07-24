@@ -4,6 +4,7 @@ import pandas as pd
 import networkx as nx
 import geopandas as gpd
 import partridge as ptg
+from geopy.distance import distance
 from shapely.geometry import Polygon
 
 def graph_from_gtfs(gtfs: str) -> nx.DiGraph:
@@ -25,10 +26,43 @@ def graph_from_gtfs(gtfs: str) -> nx.DiGraph:
     # Initialize a directed graph
     G = nx.DiGraph()
 
+    # Initialize a coordinate
+    coords = {}
+
     # Add each transit stop as a node in the graph
     for _, row in stops.iterrows():
+        coords[row['stop_id']] = (row['geometry'].y, row['geometry'].x)
         G.add_node(row['stop_id'], name=row['stop_name'], lat=row['geometry'].y, lon=row['geometry'].x)
 
+    # Iterate through trips and add edges
+    for trip_id in trips['trip_id']:
+        prev_stop, prev_departure, prev_lat, prev_lon = None, None, None, None
+        trip_stops = stop_times[stop_times.trip_id == trip_id].sort_values('stop_sequence')
+
+        for _, row in trip_stops.iterrows():
+            lat, lon = coords.get(row['stop_id'], (None, None))
+
+            # If the previous stop exists and lat/lon are valid, calculate distance and add edge
+            if prev_lat and prev_lon and pd.notnull(prev_departure) and pd.notnull(prev_stop):
+                travel_time = row['arrival_time'] - row['departure_time']
+                if travel_time >= 0:
+                    length = distance((prev_lat, prev_lon), (lat, lon)).m # Calulate distance into meter
+
+                    # Add the edge with travel time and distance
+                    G.add_edge(
+                       (prev_lat, prev_lon),
+                       row['stop_id'],
+                       trip_id=trip_id,
+                       travel_time=travel_time,
+                       distance=length 
+                    )
+        
+            # Update previous stop
+            prev_stop = row['stop_id']
+            prev_departure = row['departure_time']
+            prev_lat = lat
+            prev_lon = lon
+        
     # Return a directed graph
     return G
 
@@ -109,3 +143,6 @@ def micromobility_in_grid(grid: gpd.GeoDataFrame, amenity: gpd.GeoDataFrame, mic
         
         # Return the updated grid
         return grid
+
+def graph_to_gdf(G: nx.DiGraph or nx.MultiDiGraph or nx.MultiGraph) -> gpd.GeoDataFrame:
+    return G
