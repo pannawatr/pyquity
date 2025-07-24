@@ -4,6 +4,7 @@ import pandas as pd
 import networkx as nx
 import geopandas as gpd
 import partridge as ptg
+from geopy.distance import geodesic
 from shapely.geometry import Polygon
 
 def graph_from_gtfs(gtfs: str) -> nx.DiGraph:
@@ -26,8 +27,33 @@ def graph_from_gtfs(gtfs: str) -> nx.DiGraph:
     G = nx.DiGraph()
 
     # Add each transit stop as a node in the graph
+    coords = {}
     for _, row in stops.iterrows():
+        coords[row['stop_id']] = (row['geometry'].y, row['geometry'].x)
         G.add_node(row['stop_id'], name=row['stop_name'], lat=row['geometry'].y, lon=row['geometry'].x)
+    
+    # Loop through each trip in the feed to construct edges
+    for trip_id in trips['trip_id']:
+        trip_stops = stop_times[stop_times.trip_id == trip_id].sort_values('stop_sequence')
+
+        prev_stop = None
+        prev_departure = None
+
+        # Loop through each stop in the trip
+        for _, row in trip_stops.iterrows():
+            stop_id = row['stop_id']
+            departure_time = row['departure_time']
+            arrival_time = row['arrival_time']
+
+            # If this isn't the first stop in the trip and time data is valid
+            if prev_stop and pd.notnull(prev_departure) and pd.notnull(arrival_time):
+                travel_time = arrival_time - prev_departure  # Compute travel time in seconds
+
+                if travel_time >= 0:
+                    # Calculate the geographic distance between the two stops in meters
+                    distance_m = geodesic(stop_coords[prev_stop], stop_coords[stop_id]).meters
+                    print(distance_m)
+
 
     # Return a directed graph
     return G
