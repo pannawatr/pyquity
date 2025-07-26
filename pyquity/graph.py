@@ -5,7 +5,7 @@ import networkx as nx
 import geopandas as gpd
 import partridge as ptg
 from geopy.distance import distance
-from shapely.geometry import Polygon
+from shapely.geometry import Point, Polygon, LineString
 
 def graph_from_gtfs(gtfs: str) -> nx.DiGraph:
     # Read service dates from GTFS
@@ -44,13 +44,13 @@ def graph_from_gtfs(gtfs: str) -> nx.DiGraph:
 
             # If the previous stop exists and lat/lon are valid, calculate distance and add edge
             if prev_lat and prev_lon and pd.notnull(prev_departure) and pd.notnull(prev_stop):
-                travel_time = row['arrival_time'] - row['departure_time']
+                travel_time = row['arrival_time'] - prev_departure
                 if travel_time >= 0:
                     length = distance((prev_lat, prev_lon), (lat, lon)).m # Calulate distance into meter
 
                     # Add the edge with travel time and distance
                     G.add_edge(
-                       (prev_lat, prev_lon),
+                       prev_stop,
                        row['stop_id'],
                        trip_id=trip_id,
                        travel_time=travel_time,
@@ -143,6 +143,3 @@ def micromobility_in_grid(grid: gpd.GeoDataFrame, amenity: gpd.GeoDataFrame, mic
         
         # Return the updated grid
         return grid
-
-def graph_to_gdf(G: nx.DiGraph or nx.MultiDiGraph or nx.MultiGraph) -> gpd.GeoDataFrame:
-    return G
