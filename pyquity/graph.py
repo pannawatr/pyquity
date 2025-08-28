@@ -7,13 +7,14 @@ import partridge as ptg
 from geopy.distance import distance
 from shapely.geometry import Point, Polygon, LineString
 
-def graph_from_gtfs(gtfs: str) -> nx.DiGraph:
-    # Read service dates from GTFS
+
+def graph_from_gtfs(gtfs: str) -> nx.MultiDiGraph:
+    # Read available service dates
     date = ptg.read_service_ids_by_date(gtfs)
     if not date:
         raise ValueError("No valid service date found in GTFS.")
 
-    # Select the service date and Load GTFS feed
+    # Select the first available service date
     target_date = sorted(date.keys())[0]
     feed = ptg.load_geo_feed(gtfs, view={'trips.txt': {'service_id': date[target_date]}, 'shapes.txt': {}})
     
@@ -23,52 +24,58 @@ def graph_from_gtfs(gtfs: str) -> nx.DiGraph:
     stops = feed.stops
     shapes = feed.shapes
 
-    # Initialize a directed graph
-    G = nx.DiGraph()
-
-    # Initialize a coordinate
-    coords = {}
+    # Initialize a multidirected graph
+    G = nx.MultiDiGraph()
 
     # Add each transit stop as a node in the graph
     for _, row in stops.iterrows():
-        coords[row['stop_id']] = (row['geometry'].y, row['geometry'].x)
-        G.add_node(row['stop_id'], name=row['stop_name'], lat=row['geometry'].y, lon=row['geometry'].x)
+        G.add_node(row['stop_id'], name=row['stop_name'], x=row['geometry'].x, y=row['geometry'].y)
+    
+    # Ensure all shape geometries are LineString
+    shapes['geometry'] = shapes['geometry'].apply(lambda geoms: geoms if isinstance(geoms, LineString) else LineString(geoms))
 
-    # Iterate through trips and add edges
-    for trip_id in trips['trip_id']:
-        prev_stop, prev_departure, prev_lat, prev_lon = None, None, None, None
-        trip_stops = stop_times[stop_times.trip_id == trip_id].sort_values('stop_sequence')
+    # Create edges from trips, grouped by shape_id to reduce duplicates
+    for shape_id, group in trips.groupby('shape_id'):
+        # Take the shape geometry for this route
+        geometry = shapes.loc[shapes['shape_id'] == shape_id, 'geometry'].values[0]
 
-        for _, row in trip_stops.iterrows():
-            lat, lon = coords.get(row['stop_id'], (None, None))
+        # Take the first trip in the group as representative
+        trip_id = group.iloc[0]['trip_id']
 
-            # If the previous stop exists and lat/lon are valid, calculate distance and add edge
-            if prev_lat and prev_lon and pd.notnull(prev_departure) and pd.notnull(prev_stop):
-                travel_time = row['arrival_time'] - prev_departure
-                if travel_time >= 0:
-                    length = distance((prev_lat, prev_lon), (lat, lon)).m # Calulate distance into meter
+        # Get the stop sequence for the trip
+        stop_sequence = stop_times[stop_times.trip_id == trip_id].sort_values('stop_sequence')
+        stop_id = stop_sequence['stop_id'].tolist()
+        arrival_times = stop_sequence['arrival_time'].tolist()
+        departure_times = stop_sequence['departure_time'].tolist()
 
-                    # Add the edge with travel time and distance
-                    G.add_edge(
-                       prev_stop,
-                       row['stop_id'],
-                       trip_id=trip_id,
-                       travel_time=travel_time,
-                       distance=length 
-                    )
-        
-            # Update previous stop
-            prev_stop = row['stop_id']
-            prev_departure = row['departure_time']
-            prev_lat = lat
-            prev_lon = lon
-        
-    # Return a directed graph
+        # Add edges between consecutive stops
+        for i in range(len(stop_id)-1):
+            u = stop_id[i]
+            v = stop_id[i+1]
+
+            point_u = (stops.loc[stops.stop_id==u, 'geometry'].y.values[0], stops.loc[stops.stop_id==u, 'geometry'].x.values[0])
+            point_v = (stops.loc[stops.stop_id==v, 'geometry'].y.values[0], stops.loc[stops.stop_id==v, 'geometry'].x.values[0])
+            length = distance(point_u, point_v).m
+
+            # Add edge only if it does not already exist
+            if not G.has_edge(u, v, key=trip_id):
+                G.add_edge(
+                    u, v,
+                    trip_id=trip_id,
+                    geometry=geometry,
+                    length=length,
+                    mode='transit'
+                )
+
+    # Return a multidirected graph
+    G.graph['crs'] = "EPSG:4326"
     return G
 
 def graph_from_place(place_name: str, network_type: str) -> gpd.GeoDataFrame:
     # Return a graph from OSMnx
-    return ox.graph_from_place(place_name, network_type=network_type)
+    G = ox.graph_from_place(place_name, network_type=network_type)
+    G['mode'] = network_type
+    return G
 
 def grid_from_place(place_name: str, grid_size: float) -> gpd.GeoDataFrame:
     # Read boundary from OpenStreetMap(OSM)
