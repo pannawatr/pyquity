@@ -4,9 +4,10 @@ import pandas as pd
 import networkx as nx
 import geopandas as gpd
 import partridge as ptg
+from shapely import ops as sops
+from scipy.spatial import cKDTree
 from geopy.distance import distance
 from shapely.geometry import Point, Polygon, LineString
-
 
 def graph_from_gtfs(gtfs: str) -> nx.MultiDiGraph:
     # Read available service dates
@@ -17,7 +18,7 @@ def graph_from_gtfs(gtfs: str) -> nx.MultiDiGraph:
     # Select the first available service date
     target_date = sorted(date.keys())[0]
     feed = ptg.load_geo_feed(gtfs, view={'trips.txt': {'service_id': date[target_date]}, 'shapes.txt': {}})
-    
+
     # Extract GTFS tables
     stop_times = feed.stop_times
     trips = feed.trips
@@ -30,14 +31,16 @@ def graph_from_gtfs(gtfs: str) -> nx.MultiDiGraph:
     # Add each transit stop as a node in the graph
     for _, row in stops.iterrows():
         G.add_node(row['stop_id'], name=row['stop_name'], x=row['geometry'].x, y=row['geometry'].y)
-    
-    # Ensure all shape geometries are LineString
-    shapes['geometry'] = shapes['geometry'].apply(lambda geoms: geoms if isinstance(geoms, LineString) else LineString(geoms))
 
-    # Create edges from trips, grouped by shape_id to reduce duplicates
+    # Ensure all shape geometries are LineString
+    shapes['geometry'] = shapes['geometry'].apply( lambda geoms: geoms if isinstance(geoms, LineString) else LineString(geoms))
+    shapes = shapes.set_index('shape_id').geometry
+
+    # Create edges from trips, grouped by shape_id
     for shape_id, group in trips.groupby('shape_id'):
-        # Take the shape geometry for this route
-        geometry = shapes.loc[shapes['shape_id'] == shape_id, 'geometry'].values[0]
+        if shape_id not in shapes.index or shapes[shape_id] is None:
+            continue
+        geoms = shapes[shape_id]
 
         # Take the first trip in the group as representative
         trip_id = group.iloc[0]['trip_id']
@@ -45,36 +48,49 @@ def graph_from_gtfs(gtfs: str) -> nx.MultiDiGraph:
         # Get the stop sequence for the trip
         stop_sequence = stop_times[stop_times.trip_id == trip_id].sort_values('stop_sequence')
         stop_id = stop_sequence['stop_id'].tolist()
-        arrival_times = stop_sequence['arrival_time'].tolist()
-        departure_times = stop_sequence['departure_time'].tolist()
 
         # Add edges between consecutive stops
-        for i in range(len(stop_id)-1):
-            u = stop_id[i]
-            v = stop_id[i+1]
+        for i in range(len(stop_id) - 1):
+            u, v = stop_id[i], stop_id[i + 1]
 
-            point_u = (stops.loc[stops.stop_id==u, 'geometry'].y.values[0], stops.loc[stops.stop_id==u, 'geometry'].x.values[0])
-            point_v = (stops.loc[stops.stop_id==v, 'geometry'].y.values[0], stops.loc[stops.stop_id==v, 'geometry'].x.values[0])
-            length = distance(point_u, point_v).m
+            # Retrieve the coordinates of the two stops
+            point_u = stops.loc[stops.stop_id == u, 'geometry'].values[0]
+            point_v = stops.loc[stops.stop_id == v, 'geometry'].values[0]
+            length = distance((point_u.y, point_u.x), (point_v.y, point_v.x)).m
 
-            # Add edge only if it does not already exist
+            # Get geometry for the edge
+            try:
+                orig = geoms.project(point_u)
+                dest = geoms.project(point_v)
+                low, high = sorted([orig, dest])
+                segment = sops.substring(geoms, low, high, normalized=False)
+                if segment.is_empty or segment.length == 0:
+                    segment = LineString([pu, pv])
+            except:
+                LineString([point_u, point_v])
+
+            # Add edge only if it does not already exist, and add geometry
             if not G.has_edge(u, v, key=trip_id):
                 G.add_edge(
                     u, v,
                     trip_id=trip_id,
-                    geometry=geometry,
+                    geometry=segment,
                     length=length,
                     mode='transit'
                 )
 
-    # Return a multidirected graph
+    # Return the graph
     G.graph['crs'] = "EPSG:4326"
     return G
 
-def graph_from_place(place_name: str, network_type: str) -> gpd.GeoDataFrame:
+def graph_from_place(place_name: str, network_type: str):
     # Return a graph from OSMnx
     G = ox.graph_from_place(place_name, network_type=network_type)
-    G['mode'] = network_type
+
+    # Add mode to each edge in the graph
+    for u, v, k, data in G.edges(keys=True, data=True):
+        data['mode'] = network_type
+
     return G
 
 def grid_from_place(place_name: str, grid_size: float) -> gpd.GeoDataFrame:
@@ -150,3 +166,41 @@ def micromobility_in_grid(grid: gpd.GeoDataFrame, amenity: gpd.GeoDataFrame, mic
         
         # Return the updated grid
         return grid
+
+"""
+def graph_to_gdf(G: nx.MultiDiGraph or nx.MultiGraph) -> gpd.GeoDataFrame or tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+    if G.nodes is not None:
+        # Extract node ids and their attribute dictionaries
+        uvk, data = zip(*G.nodes(data=True))
+
+        # Build geometry for each node as a shapely Point and create a GeoDataFrame for nodes with geometry as Point
+        geometry = (Point(x['y'], x['x']) for x in data)
+        gdf_nodes = gpd.GeoDataFrame(data, index=uvk, crs='EPSG:4326', geometry=list(geometry))
+
+        # Rename the node index to "gtfsid" (instead of default integer index)
+        gdf_nodes.index = gdf_nodes.index.rename("gtfsid")
+
+    if G.edges is not None:
+        # Extract u (source), v (target), k (edge key) and attributes of edges
+        u, v, k, data = zip(*G.edges(keys=True, data=True))
+
+        # Prepare node coordinates dictionary {node_id: (lat, lon)}
+        coords = {x: (G.nodes[x]['y'], G.nodes[x]['x']) for x in G}
+
+        # If edge already has geometry (like a polyline from OSM), use it. Otherwise, create a straight LineString from coordinates of u and v
+        geometry = (data.get('geometry', LineString((coords[u], coords[v]))) for u, v, _, data in G.edges(keys=True, data=True))
+
+        # Create a GeoDataFrame for edges with geometry as LineString
+        gdf_edges = gpd.GeoDataFrame(data, crs='EPSG:4326', geometry=list(geometry))
+
+        # Add columns for u, v, and key (so edges can be uniquely identified)
+        gdf_edges["u"] = u
+        gdf_edges["v"] = v
+        gdf_edges["key"] = k
+
+        # Set the index of the GeoDataFrame to (u, v, key)
+        gdf_edges = gdf_edges.set_index(["u", "v", "key"])
+    
+    # Return both GeoDataFrames
+    return gdf_nodes, gdf_edges
+"""
