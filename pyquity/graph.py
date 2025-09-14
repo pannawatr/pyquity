@@ -9,6 +9,35 @@ from scipy.spatial import cKDTree
 from geopy.distance import distance
 from shapely.geometry import Point, Polygon, LineString
 
+def multimodal_graph(G_osm: nx.MultiDiGraph, G_gtfs: nx.MultiDiGraph, k: int=1):
+    # Get OSM node coordinates
+    osm_nodes, _ = ox.graph_to_gdfs(G_osm)
+    osm_coords = np.array(list(zip(osm_nodes["y"], osm_nodes["x"])))
+
+    # Get GTFS stop coordinates
+    gtfs_nodes = [(n, data["x"], data["y"]) for n, data in G_gtfs.nodes(data=True)]
+    gtfs_coords = np.array([(y, x) for _, x, y in gtfs_nodes])
+
+    # Build KD-tree for nearest-neighbor search
+    tree = cKDTree(osm_coords)
+
+     # Combine OSM and GTFS graphs
+    G = nx.compose(G_osm, G_gtfs)
+
+    # Connect each GTFS stop to its nearest OSM node(s)
+    for (stop_id, x, y), (dist, idx) in zip(gtfs_nodes, zip(*tree.query(gtfs_coords, k=k))):
+        osm_node = osm_nodes.iloc[idx].name
+        point_u = (y, x)
+        point_v = (osm_nodes.iloc[idx].y, osm_nodes.iloc[idx].x)
+
+        length = distance(point_u, point_v).m
+        G.add_edge(stop_id, osm_node, mode="transfer", length=length)
+        G.add_edge(osm_node, stop_id, mode="transfer", length=length)
+
+    # Return the graph
+    G.graph["crs"] = "EPSG:4326"
+    return G
+
 def graph_from_gtfs(gtfs: str) -> nx.MultiDiGraph:
     # Read available service dates
     date = ptg.read_service_ids_by_date(gtfs)
