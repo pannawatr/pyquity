@@ -10,6 +10,9 @@ from geopy.distance import distance
 from shapely.geometry import Point, Polygon, LineString
 
 def multimodal_graph(G_osm: nx.MultiDiGraph, G_gtfs: nx.MultiDiGraph, k: int=1):
+    # Relabel GTFS nodes with unique integers to avoid ID collisions with OSM graph
+    G_gtfs = nx.relabel_nodes(G_gtfs, {node: i for i, node in enumerate(G_gtfs.nodes())}, copy=True)
+
     # Get OSM node coordinates
     osm_nodes, _ = ox.graph_to_gdfs(G_osm)
     osm_coords = np.array(list(zip(osm_nodes["y"], osm_nodes["x"])))
@@ -195,41 +198,3 @@ def micromobility_in_grid(grid: gpd.GeoDataFrame, amenity: gpd.GeoDataFrame, mic
         
         # Return the updated grid
         return grid
-
-"""
-def graph_to_gdf(G: nx.MultiDiGraph or nx.MultiGraph) -> gpd.GeoDataFrame or tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
-    if G.nodes is not None:
-        # Extract node ids and their attribute dictionaries
-        uvk, data = zip(*G.nodes(data=True))
-
-        # Build geometry for each node as a shapely Point and create a GeoDataFrame for nodes with geometry as Point
-        geometry = (Point(x['y'], x['x']) for x in data)
-        gdf_nodes = gpd.GeoDataFrame(data, index=uvk, crs='EPSG:4326', geometry=list(geometry))
-
-        # Rename the node index to "gtfsid" (instead of default integer index)
-        gdf_nodes.index = gdf_nodes.index.rename("gtfsid")
-
-    if G.edges is not None:
-        # Extract u (source), v (target), k (edge key) and attributes of edges
-        u, v, k, data = zip(*G.edges(keys=True, data=True))
-
-        # Prepare node coordinates dictionary {node_id: (lat, lon)}
-        coords = {x: (G.nodes[x]['y'], G.nodes[x]['x']) for x in G}
-
-        # If edge already has geometry (like a polyline from OSM), use it. Otherwise, create a straight LineString from coordinates of u and v
-        geometry = (data.get('geometry', LineString((coords[u], coords[v]))) for u, v, _, data in G.edges(keys=True, data=True))
-
-        # Create a GeoDataFrame for edges with geometry as LineString
-        gdf_edges = gpd.GeoDataFrame(data, crs='EPSG:4326', geometry=list(geometry))
-
-        # Add columns for u, v, and key (so edges can be uniquely identified)
-        gdf_edges["u"] = u
-        gdf_edges["v"] = v
-        gdf_edges["key"] = k
-
-        # Set the index of the GeoDataFrame to (u, v, key)
-        gdf_edges = gdf_edges.set_index(["u", "v", "key"])
-    
-    # Return both GeoDataFrames
-    return gdf_nodes, gdf_edges
-"""
