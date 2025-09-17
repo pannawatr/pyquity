@@ -16,7 +16,7 @@ def plot_grid(grid, ax=None, linewidth: float=0.5, figsize: tuple[float, float]=
 
     return ax
 
-def plot_graph_route_by_mode(G, route, ax=None, show: bool=True, legend: bool=True node_size: float=0, edge_color: str='lightgray'):
+def plot_graph_route_by_mode(G, route, ax=None, show: bool=True, legend: bool=True, node_size: float=0, edge_color: str='lightgray'):
     mode_colors = {'walk': 'green', 'transit': 'red', 'bike': 'blue', 'transfer': 'yellow'}
 
     # Convert the route into a GeoDataFrame (one row per edge) using OSMnx
