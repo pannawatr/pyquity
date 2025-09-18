@@ -1,0 +1,29 @@
+import osmnx as ox
+import geopandas as gpd
+
+def route_length_by_mode(G, route, verbose: bool = True):
+    # Convert route to GeoDataFrame and project to metric CRS
+    gdf = ox.routing.route_to_gdf(G, route)
+    gdf = gdf.to_crs(epsg=3857)
+
+    # Calculate total distance by mode (km)
+    distances_km = gdf.groupby('mode')['length'].sum() / 1000
+    distances_km = round(distances_km, 2)
+    distances = distances_km.to_dict()
+
+    # Average speeds by mode (m/s)
+    speed = {
+        'walk': 5 * 1000 / 3600,
+        'bike': 20 * 1000 / 3600,
+        'transfer': 5 * 1000 / 3600,
+        'transit': 22 * 1000 / 3600
+    }
+
+    # Calculate travel time by mode (minutes)
+    travel_time = {}
+    for mode, dist_km in distances.items():
+        if mode in speed:
+            time_sec = (dist_km * 1000) / speed[mode]
+            travel_time[mode] = round(time_sec / 60, 2)
+
+    return distances, travel_time
