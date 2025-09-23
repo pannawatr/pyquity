@@ -7,9 +7,9 @@ def route_length_by_mode(G, route, verbose: bool = True):
     gdf = gdf.to_crs(epsg=3857)
 
     # Calculate total distance by mode (km)
-    distances_km = gdf.groupby('mode')['length'].sum() / 1000
-    distances_km = round(distances_km, 2)
-    distances = distances_km.to_dict()
+    distance = gdf.groupby('mode')['length'].sum() / 1000
+    distance_km = round(distance_km, 2)
+    distance = distance_km.to_dict()
 
     # Average speeds by mode (m/s)
     speed = {
@@ -21,9 +21,9 @@ def route_length_by_mode(G, route, verbose: bool = True):
 
     # Calculate travel time by mode (minutes)
     travel_time = {}
-    for mode, dist_km in distances.items():
+    for mode, dist_km in distance.items():
         if mode in speed:
             time_sec = (dist_km * 1000) / speed[mode]
             travel_time[mode] = round(time_sec / 60, 2)
 
-    return distances, travel_time
+    return distance, travel_time
