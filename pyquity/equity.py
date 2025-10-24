@@ -1,3 +1,4 @@
+import pyquity
 import osmnx as ox
 import numpy as np
 import networkx as nx
@@ -5,11 +6,8 @@ import networkx as nx
 class Equity:
     def __init__(self, G, grid, amenity):
         self.G = G
-        self.grid = grid
-        self.amenity = amenity
-
-        # Reproject amenities to metric CRS
-        self.amenity = self.amenity.to_crs(epsg=3857)
+        self.grid = grid.to_crs(epsg=3857)
+        self.amenity = amenity.to_crs(epsg=3857)
 
         # Ensure amenities are point geometries
         if not all(self.amenity.geometry.geom_type == "Point"):
@@ -17,13 +15,10 @@ class Equity:
 
     def sufficientarianism(self, served_time: int=15):
         # Map amenities to nearest nodes
-        xs = self.amenity.geometry.centroid.x.values
-        ys = self.amenity.geometry.centroid.y.values
-        self.amenity_nodes = ox.distance.nearest_nodes(self.G, xs, ys)
+        self.amenity_nodes = ox.distance.nearest_nodes(self.G, self.amenity.geometry.centroid.x.values, self.amenity.geometry.centroid.y.values)
 
         # Map grid centroids to nearest nodes
-        xs = self.grid.geometry.centroid.x.values
-        ys = self.grid.geometry.centroid.y.values
-        self.grid_nodes = ox.distance.nearest_nodes(self.G, xs, ys)
+        self.grid_nodes = ox.distance.nearest_nodes(self.G, self.grid.geometry.centroid.x.values, self.grid.geometry.centroid.y.values)
 
-        return self.grid
+        # Return GeoDataFrame of grid
+        return self.grid.to_crs(epsg=4326)
