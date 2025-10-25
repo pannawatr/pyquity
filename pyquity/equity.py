@@ -66,3 +66,5 @@ class Equity:
 
         # Return GeoDataFrame of grid
         return self.grid
+
+    def egalitarianism(self)
