@@ -59,7 +59,7 @@ class Equity:
                         # If total travel time is within the served_time threshold
                         if total_time <= served_time:
                             self.grid.loc[self.grid["grid_id"] == grid_node, "served"] = 1
-                            print(int(grid_node), int(amenity_node), distance, total_time, paths[int(amenity_node)])
+                            print(int(grid_node), int(amenity_node), distance, total_time)
                             break
                     except:
                         continue
@@ -67,4 +67,22 @@ class Equity:
         # Return GeoDataFrame of grid
         return self.grid
 
-    def egalitarianism(self)
+    def egalitarianism(self, grid):
+        # Extract 'served' data and compute Lorenz curve and Gini coefficient
+        served_data = grid['served'].values
+
+        # Calculate Lorenz curve and Gini coefficient
+        lorenz_curve = self._lorenz_curve(served_data)
+        gini_index = self._gini_coefficient(lorenz_curve)
+        return gini_index, lorenz_curve
+
+    def _lorenz_curve(self, data):
+        # Calculate Lorenz curve
+        sorted_data = np.sort(data)
+        lorenz_curve = np.insert((np.cumsum(sorted_data) / np.sum(sorted_data)), 0, 0)
+        return lorenz_curve
+
+    def _gini_coefficient(self, lorenz_curve):
+        # Calculate Gini coefficient from Lorenz curve
+        gini_index = ((0.5 - (np.sum(lorenz_curve) / (len(lorenz_curve) - 1))) * 2)
+        return gini_index
