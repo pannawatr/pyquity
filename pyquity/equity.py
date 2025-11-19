@@ -59,7 +59,6 @@ class Equity:
                         # If total travel time is within the served_time threshold
                         if total_time <= served_time:
                             self.grid.loc[self.grid["grid_id"] == grid_node, "served"] = 1
-                            print(int(grid_node), int(amenity_node), distance, total_time)
                             break
                     except:
                         continue
@@ -86,3 +85,6 @@ class Equity:
         # Calculate Gini coefficient from Lorenz curve
         gini_index = ((0.5 - (np.sum(lorenz_curve) / (len(lorenz_curve) - 1))) * 2)
         return gini_index
+    
+    def utilitarianism(self):
+        return self.grid
