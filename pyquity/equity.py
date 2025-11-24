@@ -86,5 +86,40 @@ class Equity:
         gini_index = ((0.5 - (np.sum(lorenz_curve) / (len(lorenz_curve) - 1))) * 2)
         return gini_index
     
-    def utilitarianism(self):
+    def utilitarianism(self, served_time, network_type: str='walk'):
+        # Initialize a column to track how many amenities serve each grid cell
+        self.grid["count_served"] = 0
+
+        # Select the correct network, nodes, and grid ID mapping depending on travel mode
+        if network_type == 'walk':
+            self.grid['grid_id'] = self.walk_grid_nodes
+            G_current = self.G_walk
+            amenity_nodes = self.walk_amenity_nodes
+        elif network_type == 'bike':
+            self.grid['grid_id'] = self.micromobility_grid_nodes
+            G_current = self.G_micromobility
+            amenity_nodes = self.micromobility_amenity_nodes
+
+        # Iterate over each grid cell
+        for idx, grid_row in self.grid.iterrows():
+            grid_node = grid_row['grid_id']
+
+            # Compute shortest paths (Dijkstra) from the grid node to all reachable nodes
+            paths = nx.single_source_dijkstra_path(G_current, source=grid_node, weight='length', cutoff=served_time * (22 * 1000 / 3600) * 60)
+
+            # Check each amenity node to see if it is reachable
+            for amenity_node in amenity_nodes:
+                if amenity_node in paths:
+                    try:
+                        # Get the route as a list of node IDs and calculate distance and travel time using pyquity
+                        route = [int(node) for node in paths[int(amenity_node)]]
+                        distance, travel_time = pyquity.route_length_by_mode(G_current, route)
+                        total_time = sum(travel_time.values())
+
+                        # If total travel time is within the served_time threshold
+                        if total_time <= served_time:
+                            self.grid.loc[self.grid["grid_id"] == grid_node, "count_served"] += 1
+                    except:
+                        continue
+        # Return the updated grid with count_served values
         return self.grid
