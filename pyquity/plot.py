@@ -2,20 +2,6 @@ import osmnx as ox
 import networkx as nx
 import matplotlib.pyplot as plt
 
-def plot_grid(grid, ax=None, linewidth: float=0.5, figsize: tuple[float, float]=(10, 10), legend: bool=True, show: bool=True, **kwargs):
-    # Create a new figure and axes if none provided
-    if ax is None:
-        fig, ax = plt.subplots(figsize=figsize)
-    
-    # Plot the GeoDataFrame on the axes
-    ax = grid.plot(ax=ax, edgecolor='k', color='white', linewidth=linewidth, legend=legend, **kwargs)
-
-    # Display the plot if requested
-    if show:
-        plt.show()
-
-    return ax
-
 def plot_graph_route_by_mode(G, route, ax=None, show: bool=True, legend: bool=True, node_size: float=0, edge_color: str='lightgray'):
     mode_colors = {'walk': 'green', 'transit': 'red', 'bike': 'blue', 'transfer': 'yellow'}
 
