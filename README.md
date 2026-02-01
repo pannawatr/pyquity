@@ -6,3 +6,8 @@ PyQuity can be installed via PyPI:
 ```bash
 pip install pyquity
 ```
+
+## Getting Started
+```Python
+import pyquity
+```
