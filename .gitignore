@@ -1,5 +1,7 @@
-.DS_Store
+.venv
 pyquity/.DS_Store
 
-.venv
+.DS_Store
 pyquity/.venv
+
+dist/
