@@ -177,24 +177,39 @@ def amenity_in_grid(grid: gpd.GeoDataFrame, amenity: gpd.GeoDataFrame) -> gpd.Ge
     # Reproject the grid back to WGS84 (EPSG:4326) and return it
     return grid.to_crs(epsg=4326)
 
-def micromobility_in_grid(grid: gpd.GeoDataFrame, amenity: gpd.GeoDataFrame, micromobility_size: int) -> gpd.GeoDataFrame:
-    # Calculate and normalize initial weight based on number of POIs relative to total amenities
-    if 'amenity_count' in grid.columns:
-        weight = grid['amenity_count'] / len(amenity)
-        weight = weight / weight.sum()
-        raws = weight / micromobility_size
-
-        # Assign the floor of the allocation to ensure integer values
-        grid['micromobility_count'] = raws.apply(np.floor).astype(int)
-
-        # Calculate the remaining micromobility units that need to be distributed
-        remainder = micromobility_size - grid['micromobility_count'].sum()
-        fractional = raws - np.floor(raws)
-
-        # Distribute the remaining units to the grid cells with the highest fractional values
-        indices = fractional.sort_values(ascending=False).index[:remainder]
-        for index in indices:
-            grid.at[index, 'micromobility_count'] += 1
-        
-        # Return the updated grid
+def micromobility_in_grid(grid: gpd.GeoDataFrame, amenity: gpd.GeoDataFrame, micromobility_size: int, alpha: float = 1.0) -> gpd.GeoDataFrame:
+    # If amenity counts are not present, initialize counts and return zeros
+    if 'amenity_count' not in grid.columns:
+        grid['micromobility_count'] = 0
         return grid
+
+    # Prepare counts and ensure numeric
+    counts = grid['amenity_count'].fillna(0).astype(float)
+
+    # Compute weights: raise counts to the power of alpha to control emphasis
+    weights = counts ** alpha
+
+    total_weight = weights.sum()
+    # If there are no amenities at all, assign zero everywhere
+    if total_weight == 0 or micromobility_size <= 0:
+        grid['micromobility_count'] = 0
+        return grid
+
+    # Normalize weights to form a probability distribution
+    probs = weights / total_weight
+
+    # Expected (real-valued) allocation per cell
+    expected = probs * micromobility_size
+
+    # Assign integer allocations by flooring expected values
+    grid['micromobility_count'] = np.floor(expected).astype(int)
+
+    # Distribute the remaining units by largest fractional parts (prioritizes high-amenity cells)
+    remainder = int(micromobility_size - grid['micromobility_count'].sum())
+    if remainder > 0:
+        fractional = expected - np.floor(expected)
+        indices = fractional.sort_values(ascending=False).index[:remainder]
+        for idx in indices:
+            grid.at[idx, 'micromobility_count'] += 1
+
+    return grid
